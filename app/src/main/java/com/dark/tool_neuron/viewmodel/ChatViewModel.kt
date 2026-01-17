@@ -578,9 +578,14 @@ class ChatViewModel @Inject constructor(
 
             val serverTools = mutableMapOf<McpServer, List<com.dark.tool_neuron.service.McpToolInfo>>()
             enabledServers.forEach { server ->
-                val tools = mcpClientService.listTools(server)
-                if (tools.isNotEmpty()) {
-                    serverTools[server] = tools
+                try {
+                    val tools = mcpClientService.listTools(server)
+                    if (tools.isNotEmpty()) {
+                        serverTools[server] = tools
+                    }
+                } catch (e: Exception) {
+                    // Log individual server failures but continue with other servers
+                    android.util.Log.w("ChatViewModel", "Failed to list tools from ${server.name}: ${e.message}")
                 }
             }
 
@@ -590,7 +595,21 @@ class ChatViewModel @Inject constructor(
                 return
             }
 
-            val mapping = McpToolMapper.buildMapping(serverTools)
+            // Get current context size for validation
+            val contextSize = getCurrentContextSize()
+            
+            val mapping = try {
+                McpToolMapper.buildMapping(serverTools, contextSize)
+            } catch (e: com.dark.tool_neuron.service.McpContextOverflowException) {
+                // Handle context overflow with a user-friendly error
+                val message = e.message ?: "Too many MCP tools for the current context size"
+                _error.value = message
+                AppStateManager.setError(message)
+                mcpToolRegistry = emptyMap()
+                LlmModelWorker.clearGgufTools()
+                return
+            }
+            
             mcpToolRegistry = mapping.toolRegistry
 
             if (mapping.toolRegistry.isEmpty()) {
@@ -607,6 +626,21 @@ class ChatViewModel @Inject constructor(
             _error.value = message
             AppStateManager.setError(message)
         }
+    }
+    
+    /**
+     * Get the current model's context size, or a default if not available.
+     * Returns a reasonable default value for context validation.
+     */
+    private fun getCurrentContextSize(): Int {
+        // Return default context size for validation
+        // In a future enhancement, this could be obtained from the loaded model config
+        return DEFAULT_CONTEXT_SIZE
+    }
+    
+    companion object {
+        /** Default context size for tool validation when actual size is unknown */
+        private const val DEFAULT_CONTEXT_SIZE = 2048
     }
 
     private suspend fun handleToolCallForNewChat(prompt: String, toolCall: ToolCallInfo) {
@@ -656,7 +690,27 @@ class ChatViewModel @Inject constructor(
 
     private suspend fun executeToolCall(toolCall: ToolCallInfo): Result<String> {
         val reference = mcpToolRegistry[toolCall.name]
-            ?: return Result.failure(Exception("Tool not found: ${toolCall.name}"))
+            ?: return Result.failure(
+                com.dark.tool_neuron.service.McpToolNotFoundException(toolCall.name)
+            )
+        
+        // Check if the server is still enabled
+        if (!reference.server.isEnabled) {
+            return Result.failure(
+                com.dark.tool_neuron.service.McpServerDisabledException(reference.server.name)
+            )
+        }
+        
+        // Check if the tool is disabled on this server
+        if (reference.server.isToolDisabled(reference.toolName)) {
+            return Result.failure(
+                com.dark.tool_neuron.service.McpToolDisabledException(
+                    reference.toolName,
+                    reference.server.name
+                )
+            )
+        }
+        
         return mcpClientService.callTool(reference.server, reference.toolName, toolCall.argsJson)
     }
 

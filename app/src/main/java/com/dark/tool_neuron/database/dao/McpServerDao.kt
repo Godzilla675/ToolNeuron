@@ -34,6 +34,9 @@ interface McpServerDao {
     @Query("UPDATE mcp_servers SET lastConnectedAt = :timestamp, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateLastConnected(id: String, timestamp: Long, updatedAt: Long)
     
+    @Query("UPDATE mcp_servers SET disabledToolsJson = :disabledToolsJson, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateDisabledTools(id: String, disabledToolsJson: String?, updatedAt: Long)
+    
     @Query("SELECT COUNT(*) FROM mcp_servers")
     fun getServerCount(): Flow<Int>
     

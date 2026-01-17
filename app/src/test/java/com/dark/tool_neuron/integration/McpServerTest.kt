@@ -2,6 +2,7 @@ package com.dark.tool_neuron.integration
 
 import com.dark.tool_neuron.models.table_schema.McpServer
 import com.dark.tool_neuron.models.table_schema.McpTransportType
+import com.dark.tool_neuron.service.McpContextOverflowException
 import com.dark.tool_neuron.service.McpToolInfo
 import com.dark.tool_neuron.service.McpToolMapper
 import org.json.JSONArray
@@ -231,5 +232,189 @@ data: {"result":{"tools":[{"name":"google_docs_create_document_from_text","descr
         ids.forEach { id ->
             assertTrue("ID should be a valid UUID format", id.matches(Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")))
         }
+    }
+    
+    // ==================== Edge Case Tests ====================
+    
+    /**
+     * Test that disabled tools are filtered out from the mapping.
+     */
+    @Test
+    fun disabledToolsAreFiltered() {
+        val server = McpServer(
+            id = "server-1",
+            name = "Test Server",
+            url = "https://example.com/mcp",
+            disabledToolsJson = """["tool-2"]"""
+        )
+        
+        val tools = listOf(
+            McpToolInfo(name = "tool-1", description = "Tool 1", inputSchema = null),
+            McpToolInfo(name = "tool-2", description = "Tool 2 (disabled)", inputSchema = null),
+            McpToolInfo(name = "tool-3", description = "Tool 3", inputSchema = null)
+        )
+        
+        val mapping = McpToolMapper.buildMapping(mapOf(server to tools))
+        
+        assertEquals(2, mapping.toolRegistry.size)
+        assertEquals(1, mapping.skippedDisabledTools)
+        assertNull(mapping.toolRegistry["test_server_tool_2"])
+    }
+    
+    /**
+     * Test stress: many tools from multiple servers.
+     */
+    @Test
+    fun stressTestManyToolsFromMultipleServers() {
+        val servers = (1..5).map { serverNum ->
+            McpServer(
+                id = "server-$serverNum",
+                name = "Server $serverNum",
+                url = "https://server$serverNum.example.com/mcp",
+                transportType = McpTransportType.SSE
+            )
+        }
+        
+        val serverTools = servers.associateWith { server ->
+            (1..20).map { toolNum ->
+                McpToolInfo(
+                    name = "tool-$toolNum",
+                    description = "Tool $toolNum on ${server.name}",
+                    inputSchema = """{"type":"object","properties":{"param":{"type":"string"}}}"""
+                )
+            }
+        }
+        
+        val mapping = McpToolMapper.buildMapping(serverTools)
+        
+        // 5 servers × 20 tools = 100 tools
+        assertEquals(100, mapping.toolRegistry.size)
+        assertEquals(100, mapping.totalToolCount)
+        
+        // Verify tool names are unique
+        val toolIds = mapping.toolRegistry.keys
+        assertEquals(100, toolIds.size)
+    }
+    
+    /**
+     * Test that context overflow is detected with many tools.
+     */
+    @Test(expected = McpContextOverflowException::class)
+    fun contextOverflowDetectedWithManyTools() {
+        val server = McpServer(
+            id = "server-1",
+            name = "Large Server",
+            url = "https://example.com/mcp"
+        )
+        
+        // Create many large tools to overflow a small context
+        val tools = (1..100).map { i ->
+            McpToolInfo(
+                name = "large-tool-$i",
+                description = "This is a very long description for tool $i that should consume significant tokens. " +
+                    "It includes details about what the tool does, how to use it, and various parameters. " +
+                    "This helps test context overflow detection.",
+                inputSchema = """{"type":"object","properties":{
+                    "param1":{"type":"string","description":"First parameter with a long description"},
+                    "param2":{"type":"number","description":"Second parameter for numerical input"},
+                    "param3":{"type":"boolean","description":"Third parameter as a boolean flag"}
+                },"required":["param1"]}"""
+            )
+        }
+        
+        // Very small context (256 tokens) should trigger overflow
+        McpToolMapper.buildMapping(mapOf(server to tools), contextSize = 256)
+    }
+    
+    /**
+     * Test handling of tools with special characters in names.
+     */
+    @Test
+    fun toolsWithSpecialCharactersInNames() {
+        val server = McpServer(
+            id = "server-1",
+            name = "Test Server",
+            url = "https://example.com/mcp"
+        )
+        
+        val tools = listOf(
+            McpToolInfo(name = "send-email", description = "Dash in name", inputSchema = null),
+            McpToolInfo(name = "create.document", description = "Dot in name", inputSchema = null),
+            McpToolInfo(name = "get user info", description = "Space in name", inputSchema = null),
+            McpToolInfo(name = "API_CALL", description = "Uppercase", inputSchema = null)
+        )
+        
+        val mapping = McpToolMapper.buildMapping(mapOf(server to tools))
+        
+        assertEquals(4, mapping.toolRegistry.size)
+        
+        // All names should be sanitized
+        assertTrue(mapping.toolRegistry.containsKey("test_server_send_email"))
+        assertTrue(mapping.toolRegistry.containsKey("test_server_create_document"))
+        assertTrue(mapping.toolRegistry.containsKey("test_server_get_user_info"))
+        assertTrue(mapping.toolRegistry.containsKey("test_server_api_call"))
+    }
+    
+    /**
+     * Test handling of empty server name.
+     */
+    @Test
+    fun serverWithEmptyName() {
+        val server = McpServer(
+            id = "server-1",
+            name = "",
+            url = "https://example.com/mcp"
+        )
+        
+        val tools = listOf(
+            McpToolInfo(name = "test-tool", description = "A tool", inputSchema = null)
+        )
+        
+        val mapping = McpToolMapper.buildMapping(mapOf(server to tools))
+        
+        assertEquals(1, mapping.toolRegistry.size)
+        // Empty server name should default to "mcp" prefix
+        assertTrue(mapping.toolRegistry.containsKey("mcp_test_tool"))
+    }
+    
+    /**
+     * Test that disabled tools preserve other server functionality.
+     */
+    @Test
+    fun disabledToolsDoNotAffectOtherServers() {
+        val server1 = McpServer(
+            id = "server-1",
+            name = "Server A",
+            url = "https://a.example.com/mcp",
+            disabledToolsJson = """["common-tool"]"""
+        )
+        val server2 = McpServer(
+            id = "server-2",
+            name = "Server B",
+            url = "https://b.example.com/mcp"
+        )
+        
+        val serverTools = mapOf(
+            server1 to listOf(
+                McpToolInfo(name = "common-tool", description = "Disabled on server A", inputSchema = null),
+                McpToolInfo(name = "unique-tool-a", description = "Unique to A", inputSchema = null)
+            ),
+            server2 to listOf(
+                McpToolInfo(name = "common-tool", description = "Enabled on server B", inputSchema = null),
+                McpToolInfo(name = "unique-tool-b", description = "Unique to B", inputSchema = null)
+            )
+        )
+        
+        val mapping = McpToolMapper.buildMapping(serverTools)
+        
+        // Server A: 1 tool (unique-tool-a), common-tool is disabled
+        // Server B: 2 tools (common-tool, unique-tool-b)
+        assertEquals(3, mapping.toolRegistry.size)
+        assertEquals(1, mapping.skippedDisabledTools)
+        
+        assertNull(mapping.toolRegistry["server_a_common_tool"])
+        assertNotNull(mapping.toolRegistry["server_a_unique_tool_a"])
+        assertNotNull(mapping.toolRegistry["server_b_common_tool"])
+        assertNotNull(mapping.toolRegistry["server_b_unique_tool_b"])
     }
 }
