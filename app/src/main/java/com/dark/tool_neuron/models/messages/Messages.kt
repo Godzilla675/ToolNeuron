@@ -70,5 +70,6 @@ enum class ContentType {
 @Serializable
 enum class Role {
     User,
-    Assistant
+    Assistant,
+    Tool
 }

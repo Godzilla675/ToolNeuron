@@ -178,6 +178,10 @@ class LLMService : Service() {
             return ggufEngine.setToolsJson(toolsJson)
         }
 
+        override fun setSystemPromptGguf(systemPrompt: String): Boolean {
+            return ggufEngine.setSystemPrompt(systemPrompt)
+        }
+
         override fun clearToolsGguf() {
             ggufEngine.clearTools()
         }

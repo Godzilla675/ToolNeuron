@@ -309,6 +309,14 @@ object LlmModelWorker {
         return service?.modelInfoGguf
     }
 
+    fun setToolsJson(toolsJson: String): Boolean {
+        return service?.setToolsJsonGguf(toolsJson) ?: false
+    }
+
+    fun setSystemPrompt(systemPrompt: String): Boolean {
+        return service?.setSystemPromptGguf(systemPrompt) ?: false
+    }
+
     // ==================== Diffusion Methods ====================
 
     /**

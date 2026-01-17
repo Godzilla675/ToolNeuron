@@ -29,6 +29,25 @@ class ChatManager {
         }
     }
 
+    suspend fun addToolMessage(
+        chatId: String,
+        content: String
+    ): Result<Messages> = withContext(Dispatchers.IO) {
+        try {
+            val message = Messages(
+                role = Role.Tool,
+                content = MessageContent(
+                    contentType = ContentType.Text,
+                    content = content
+                )
+            )
+            VaultHelper.addMessage(chatId, message)
+            Result.success(message)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getAllChats(): Result<List<ChatInfo>> = withContext(Dispatchers.IO) {
         try {
             val chats = VaultHelper.getAllChats()

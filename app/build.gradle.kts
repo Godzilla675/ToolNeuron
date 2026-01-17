@@ -143,6 +143,11 @@ dependencies {
 
     // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.10")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }
 
 fun getProperty(value: String): String {

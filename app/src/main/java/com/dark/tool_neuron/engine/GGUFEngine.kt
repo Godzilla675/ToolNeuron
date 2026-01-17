@@ -213,6 +213,16 @@ class GGUFEngine {
         }
     }
 
+    fun setSystemPrompt(prompt: String): Boolean {
+        if (!isLoaded) return false
+        return try {
+            nativeLib.nativeSetSystemPrompt(prompt)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /**
      * Clear tools configuration and disable function calling
      */

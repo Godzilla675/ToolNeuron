@@ -7,6 +7,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dark.tool_neuron.di.AppContainer
 import com.dark.tool_neuron.engine.GenerationEvent
+import com.dark.tool_neuron.models.table_schema.McpServer
+import com.dark.tool_neuron.repo.McpServerRepository
+import com.dark.tool_neuron.service.McpClientService
+import com.dark.tool_neuron.service.McpToolInfo
+import kotlinx.coroutines.CancellationException
+import org.json.JSONArray
+import org.json.JSONObject
 import com.dark.tool_neuron.models.messages.ContentType
 import com.dark.tool_neuron.models.messages.ImageGenerationMetrics
 import com.dark.tool_neuron.models.messages.MessageContent
@@ -31,7 +38,9 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatManager: ChatManager,
-    private val generationManager: GenerationManager
+    private val generationManager: GenerationManager,
+    private val mcpServerRepository: McpServerRepository,
+    private val mcpClientService: McpClientService
 ) : ViewModel() {
 
     private val _messages = mutableStateListOf<Messages>()
@@ -103,6 +112,9 @@ class ChatViewModel @Inject constructor(
     private val _currentRagResults = MutableStateFlow<List<RagQueryDisplayResult>>(emptyList())
     val currentRagResults: StateFlow<List<RagQueryDisplayResult>> = _currentRagResults
 
+    // MCP Tools state
+    private var enabledTools: List<Pair<McpServer, McpToolInfo>> = emptyList()
+
     // ==================== RAG Controls ====================
 
     fun setRagEnabled(enabled: Boolean) {
@@ -138,6 +150,10 @@ class ChatViewModel @Inject constructor(
         _error.value = null
         isNewConversation = true
         AppStateManager.setHasMessages(false)
+
+        viewModelScope.launch {
+            loadEnabledTools()
+        }
     }
 
     fun loadChat(chatId: String) {
@@ -151,7 +167,38 @@ class ChatViewModel @Inject constructor(
                 _error.value = "Failed to load chat: ${e.message}"
                 AppStateManager.setError("Failed to load chat: ${e.message}")
             }
+            loadEnabledTools()
         }
+    }
+
+    private suspend fun loadEnabledTools() {
+        var servers: List<McpServer> = emptyList()
+        try {
+            mcpServerRepository.getEnabledServers().collect { list ->
+                servers = list
+                throw CancellationException("Got servers")
+            }
+        } catch (e: CancellationException) {
+            // Expected
+        } catch (e: Exception) {
+            _error.value = "Failed to load MCP servers: ${e.message}"
+            return
+        }
+
+        val toolsList = mutableListOf<Pair<McpServer, McpToolInfo>>()
+
+        // Connect to each server and get tools
+        // We do this sequentially or simply parallel could be better but let's keep it simple
+        servers.forEach { server ->
+            val result = mcpClientService.testConnection(server)
+            if (result.success) {
+                result.tools.forEach { tool ->
+                    toolsList.add(server to tool)
+                }
+            }
+        }
+
+        enabledTools = toolsList
     }
 
     // ==================== Model Selection ====================
@@ -233,6 +280,9 @@ class ChatViewModel @Inject constructor(
 
             AppStateManager.setGeneratingText()
 
+            // Prepare Tools and System Prompt
+            prepareToolsAndSystemPrompt()
+
             var tokenBuffer = StringBuilder()
             var tokenCount = 0
             var lastUpdateTime = System.currentTimeMillis()
@@ -279,7 +329,9 @@ class ChatViewModel @Inject constructor(
                             currentMetrics = event.metrics
                         }
 
-                        is GenerationEvent.ToolCall -> {}
+                        is GenerationEvent.ToolCall -> {
+                            handleToolCall(prompt, event.name, event.args)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -297,6 +349,9 @@ class ChatViewModel @Inject constructor(
             currentMetrics = null
 
             AppStateManager.setGeneratingText()
+
+            // Prepare Tools and System Prompt
+            prepareToolsAndSystemPrompt()
 
             val tokenBuffer = StringBuilder()
             var tokenCount = 0
@@ -383,7 +438,9 @@ class ChatViewModel @Inject constructor(
                                 currentMetrics = event.metrics
                             }
 
-                            is GenerationEvent.ToolCall -> {}
+                            is GenerationEvent.ToolCall -> {
+                                handleToolCallExisting(chatId, userMessage, event.name, event.args)
+                            }
                         }
                     }
             } catch (e: Exception) {
@@ -977,6 +1034,216 @@ class ChatViewModel @Inject constructor(
         }
 
         resetStreamingState()
+    }
+
+    private suspend fun prepareToolsAndSystemPrompt() {
+        // Refresh tools before generation
+        loadEnabledTools()
+
+        if (enabledTools.isEmpty()) {
+            generationManager.setToolsJson("")
+            return
+        }
+
+        // 1. Set Tools JSON for grammar
+        val toolsJsonArray = JSONArray()
+        enabledTools.forEach { (_, tool) ->
+            val toolJson = JSONObject()
+            toolJson.put("type", "function")
+            val functionJson = JSONObject()
+            functionJson.put("name", tool.name)
+            functionJson.put("description", tool.description ?: "")
+            if (tool.inputSchema != null) {
+                try {
+                    functionJson.put("parameters", JSONObject(tool.inputSchema))
+                } catch (e: Exception) {
+                    // If schema is not JSON, put empty object
+                     functionJson.put("parameters", JSONObject())
+                }
+            } else {
+                 functionJson.put("parameters", JSONObject())
+            }
+            toolJson.put("function", functionJson)
+            toolsJsonArray.put(toolJson)
+        }
+        generationManager.setToolsJson(toolsJsonArray.toString())
+
+        // 2. Inject System Prompt
+        // We append tool instructions to the system prompt
+        val toolDescriptions = StringBuilder("You have access to the following tools:\n\n")
+        enabledTools.forEach { (_, tool) ->
+            toolDescriptions.append("- ${tool.name}: ${tool.description}\n")
+            if (tool.inputSchema != null) {
+                toolDescriptions.append("  Schema: ${tool.inputSchema}\n")
+            }
+            toolDescriptions.append("\n")
+        }
+        toolDescriptions.append("To use a tool, output a JSON object with 'name' and 'arguments'.\n")
+
+        generationManager.setSystemPrompt(toolDescriptions.toString())
+    }
+
+    private suspend fun handleToolCall(prompt: String, toolName: String, args: String) {
+        val tool = enabledTools.find { it.second.name == toolName }
+        if (tool == null) {
+            _streamingAssistantMessage.value = "Error: Tool '$toolName' not found."
+            return
+        }
+
+        val (server, _) = tool
+
+        // Add Assistant Message with Tool Call
+        createChatWithMessages(prompt, "Calling tool: $toolName with $args", currentMetrics)
+
+        // Call Tool
+        try {
+            val argsMap = try {
+                 val json = JSONObject(args)
+                 val map = mutableMapOf<String, Any>()
+                 json.keys().forEach { key -> map[key] = json.get(key) }
+                 map
+            } catch (e: Exception) {
+                emptyMap<String, Any>()
+            }
+
+            val result = mcpClientService.callTool(server, toolName, argsMap)
+            val resultString = result.getOrElse { "Error calling tool: ${it.message}" }
+
+            // Add Tool Message
+            // We need to add a message with Role.Tool
+            // Since createChatWithMessages creates a new chat, we need to add to that chat.
+            // But handleToolCall is called inside generateTextForNewChat loop.
+            // If we are here, createChatWithMessages was just called.
+            // So _currentChatId should be set.
+            val chatId = _currentChatId.value
+            if (chatId != null) {
+                 val toolMessage = Messages(
+                    role = Role.Tool,
+                    content = MessageContent(
+                        contentType = ContentType.Text,
+                        content = resultString
+                    )
+                )
+                _messages.add(toolMessage)
+                chatManager.addToolMessage(chatId, "Tool Output: $resultString")
+
+                // Continue Generation (Recurse)
+                generateText(chatId, _messages.last(), 512) // Re-trigger generation with updated history
+            }
+        } catch (e: Exception) {
+             _error.value = "Tool execution failed: ${e.message}"
+        }
+    }
+
+    private suspend fun handleToolCallExisting(chatId: String, userMessage: Messages, toolName: String, args: String) {
+        val tool = enabledTools.find { it.second.name == toolName }
+        if (tool == null) {
+             // Handle error
+             return
+        }
+
+        val (server, _) = tool
+
+        // 1. Add Assistant Message (Tool Call)
+        if (!userMessageAdded) {
+            _messages.add(userMessage)
+            userMessageAdded = true
+        }
+
+        val assistantMessage = Messages(
+             role = Role.Assistant,
+             content = MessageContent(
+                 contentType = ContentType.Text,
+                 content = "Calling tool: $toolName with $args"
+             ),
+             decodingMetrics = currentMetrics
+        )
+        _messages.add(assistantMessage)
+        chatManager.addAssistantMessage(chatId, assistantMessage.content.content, currentMetrics)
+
+        // 2. Call Tool
+         try {
+            val argsMap = try {
+                 val json = JSONObject(args)
+                 val map = mutableMapOf<String, Any>()
+                 json.keys().forEach { key -> map[key] = json.get(key) }
+                 map
+            } catch (e: Exception) {
+                emptyMap<String, Any>()
+            }
+
+            val result = mcpClientService.callTool(server, toolName, argsMap)
+            val resultString = result.getOrElse { "Error calling tool: ${it.message}" }
+
+            // 3. Add Tool Message
+            val toolMessage = Messages(
+                    role = Role.Tool,
+                    content = MessageContent(
+                        contentType = ContentType.Text,
+                        content = resultString
+                    )
+                )
+             _messages.add(toolMessage)
+             chatManager.addToolMessage(chatId, "Tool Output: $resultString")
+
+             // 4. Continue Generation
+             continueGeneration(chatId, toolMessage)
+
+        } catch (e: Exception) {
+             _error.value = "Tool execution failed: ${e.message}"
+        }
+    }
+
+    private fun continueGeneration(chatId: String, lastMessage: Messages) {
+          generationJob = viewModelScope.launch {
+            _isGenerating.value = true
+            _error.value = null
+            _streamingAssistantMessage.value = ""
+            currentGeneratedContent = ""
+            currentMetrics = null
+
+             try {
+                // Manually build prompt for continuation
+                val conversationPrompt = generationManager.buildPromptFromHistory(_messages) + "Assistant:"
+
+                 generationManager.generateTextStreaming(conversationPrompt, 512)
+                    .collect { event ->
+                        when (event) {
+                             is GenerationEvent.Token -> {
+                                currentGeneratedContent += event.text
+                                _streamingAssistantMessage.value = currentGeneratedContent
+                            }
+                            is GenerationEvent.Done -> {
+                                val assistantMessage = Messages(
+                                    role = Role.Assistant,
+                                    content = MessageContent(
+                                        contentType = ContentType.Text,
+                                        content = currentGeneratedContent
+                                    ),
+                                    decodingMetrics = currentMetrics
+                                )
+                                _messages.add(assistantMessage)
+                                chatManager.addAssistantMessage(
+                                    chatId, currentGeneratedContent, currentMetrics, null
+                                )
+                                AppStateManager.setGenerationComplete()
+                                resetStreamingState()
+                            }
+                            is GenerationEvent.Error -> {
+                                handleTextGenerationErrorExisting(chatId, lastMessage, event.message)
+                            }
+                             is GenerationEvent.ToolCall -> {
+                                handleToolCallExisting(chatId, lastMessage, event.name, event.args)
+                            }
+                            is GenerationEvent.Metrics -> {
+                                currentMetrics = event.metrics
+                            }
+                        }
+                    }
+             } catch (e: Exception) {
+                 resetStreamingState()
+             }
+          }
     }
 
     // ==================== UI Controls ====================

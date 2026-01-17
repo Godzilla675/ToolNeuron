@@ -46,6 +46,14 @@ class GenerationManager {
         LlmModelWorker.ggufStopGeneration()
     }
 
+    fun setToolsJson(toolsJson: String): Boolean {
+        return LlmModelWorker.setToolsJson(toolsJson)
+    }
+
+    fun setSystemPrompt(systemPrompt: String): Boolean {
+        return LlmModelWorker.setSystemPrompt(systemPrompt)
+    }
+
     // ==================== Image Generation ====================
 
     fun generateImageStreaming(
@@ -97,6 +105,9 @@ class GenerationManager {
                         promptBuilder.append("Assistant: ${message.content.content}\n")
                     }
                 }
+                Role.Tool -> {
+                    promptBuilder.append("Tool Output: ${message.content.content}\n")
+                }
             }
         }
 
@@ -119,6 +130,9 @@ class GenerationManager {
                     if (message.content.contentType != com.dark.tool_neuron.models.messages.ContentType.Image) {
                         builder.append("Assistant: ${message.content.content}\n")
                     }
+                }
+                Role.Tool -> {
+                    builder.append("Tool Output: ${message.content.content}\n")
                 }
             }
         }
