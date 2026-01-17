@@ -32,8 +32,15 @@ object McpToolMapper {
     
     /**
      * Approximate tokens per character ratio for tool definitions.
-     * This is a conservative estimate - actual tokenization varies by model.
-     * Using ~4 characters per token as a rough estimate.
+     * 
+     * This is a conservative estimate for token counting. Actual tokenization
+     * varies significantly by model and tokenizer:
+     * - GPT-style BPE tokenizers: ~4 chars/token for English text
+     * - SentencePiece (LLaMA): ~3.5 chars/token
+     * - JSON structure tends to tokenize less efficiently due to special chars
+     * 
+     * We use 4 chars/token as a conservative estimate that should work for most
+     * models. For critical applications, consider using actual tokenizer counts.
      */
     private const val CHARS_PER_TOKEN = 4
     

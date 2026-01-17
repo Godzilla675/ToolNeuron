@@ -639,8 +639,12 @@ class ChatViewModel @Inject constructor(
     }
     
     companion object {
-        /** Default context size for tool validation when actual size is unknown */
-        private const val DEFAULT_CONTEXT_SIZE = 2048
+        /** 
+         * Default context size for tool validation when actual size is unknown.
+         * Using 4096 as a reasonable default for modern LLMs running on mobile devices.
+         * This can be overridden when the actual model config is available.
+         */
+        private const val DEFAULT_CONTEXT_SIZE = 4096
     }
 
     private suspend fun handleToolCallForNewChat(prompt: String, toolCall: ToolCallInfo) {
