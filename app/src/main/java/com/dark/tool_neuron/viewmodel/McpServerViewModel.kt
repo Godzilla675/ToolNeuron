@@ -285,4 +285,43 @@ class McpServerViewModel @Inject constructor(
     fun clearTestResult() {
         _testResult.value = null
     }
+    
+    /**
+     * Enable a specific tool on a server
+     */
+    fun enableTool(serverId: String, toolName: String) {
+        viewModelScope.launch {
+            try {
+                repository.enableTool(serverId, toolName)
+            } catch (e: Exception) {
+                setError("Failed to enable tool: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Disable a specific tool on a server
+     */
+    fun disableTool(serverId: String, toolName: String) {
+        viewModelScope.launch {
+            try {
+                repository.disableTool(serverId, toolName)
+            } catch (e: Exception) {
+                setError("Failed to disable tool: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Toggle a tool's enabled/disabled state
+     */
+    fun toggleToolEnabled(serverId: String, toolName: String, enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.setToolEnabled(serverId, toolName, enabled)
+            } catch (e: Exception) {
+                setError("Failed to update tool: ${e.message}")
+            }
+        }
+    }
 }

@@ -150,4 +150,58 @@ class McpServerRepository @Inject constructor(
     fun getConnectionStatus(serverId: String): McpConnectionStatus {
         return _connectionStatuses.value[serverId] ?: McpConnectionStatus.DISCONNECTED
     }
+    
+    /**
+     * Update the list of disabled tools for a server
+     * @param serverId The ID of the server
+     * @param disabledTools Set of tool names to disable
+     */
+    suspend fun updateDisabledTools(serverId: String, disabledTools: Set<String>) {
+        val json = if (disabledTools.isEmpty()) {
+            null
+        } else {
+            org.json.JSONArray(disabledTools.toList()).toString()
+        }
+        mcpServerDao.updateDisabledTools(serverId, json, System.currentTimeMillis())
+    }
+    
+    /**
+     * Enable a specific tool on a server
+     * @param serverId The ID of the server
+     * @param toolName The name of the tool to enable
+     */
+    suspend fun enableTool(serverId: String, toolName: String) {
+        val server = mcpServerDao.getServerById(serverId) ?: return
+        val currentDisabled = server.getDisabledTools().toMutableSet()
+        if (currentDisabled.remove(toolName)) {
+            updateDisabledTools(serverId, currentDisabled)
+        }
+    }
+    
+    /**
+     * Disable a specific tool on a server
+     * @param serverId The ID of the server
+     * @param toolName The name of the tool to disable
+     */
+    suspend fun disableTool(serverId: String, toolName: String) {
+        val server = mcpServerDao.getServerById(serverId) ?: return
+        val currentDisabled = server.getDisabledTools().toMutableSet()
+        if (currentDisabled.add(toolName)) {
+            updateDisabledTools(serverId, currentDisabled)
+        }
+    }
+    
+    /**
+     * Toggle a tool's enabled/disabled state on a server
+     * @param serverId The ID of the server
+     * @param toolName The name of the tool to toggle
+     * @param enabled Whether the tool should be enabled
+     */
+    suspend fun setToolEnabled(serverId: String, toolName: String, enabled: Boolean) {
+        if (enabled) {
+            enableTool(serverId, toolName)
+        } else {
+            disableTool(serverId, toolName)
+        }
+    }
 }
