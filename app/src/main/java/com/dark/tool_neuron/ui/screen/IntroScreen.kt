@@ -52,7 +52,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun IntroScreen() {
+fun IntroScreen(onFinished: () -> Unit) {
     val context = LocalContext.current
 
     var progress by remember { mutableFloatStateOf(0f) }
@@ -100,6 +100,7 @@ fun IntroScreen() {
             delay(delayTime)
             progress = i / 1000f
         }
+        onFinished()
     }
 
     Scaffold(Modifier.fillMaxSize()) { _ ->
