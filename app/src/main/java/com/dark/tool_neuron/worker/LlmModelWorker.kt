@@ -289,7 +289,7 @@ object LlmModelWorker {
         }
 
         awaitClose {
-            // Optional: stop generation if flow is cancelled
+            ggufStopGeneration()
         }
     }.buffer(Channel.UNLIMITED)
         .flowOn(Dispatchers.IO)
@@ -510,7 +510,7 @@ object LlmModelWorker {
         }
 
         awaitClose {
-            // Flow cancelled
+            stopDiffusionGeneration()
         }
     }.buffer(Channel.UNLIMITED)
         .flowOn(Dispatchers.IO)

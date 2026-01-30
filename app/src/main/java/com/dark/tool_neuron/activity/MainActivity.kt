@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
@@ -25,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.dark.tool_neuron.data.TermsDataStore
 import com.dark.tool_neuron.di.AppContainer
 import com.dark.tool_neuron.engine.EmbeddingEngine
+import com.dark.tool_neuron.ui.screen.IntroScreen
 import com.dark.tool_neuron.ui.screen.EmbeddingSetupScreen
 import com.dark.tool_neuron.ui.screen.McpServersScreen
 import com.dark.tool_neuron.ui.screen.ModelConfigEditorScreen
@@ -78,6 +80,8 @@ class MainActivity : ComponentActivity() {
                 val hasAcceptedTerms by termsDataStore.hasAcceptedTerms.collectAsState(initial = true)
                 val scope = rememberCoroutineScope()
 
+                var showIntro by rememberSaveable { mutableStateOf(true) }
+
                 // Start background download if model not present
                 LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) {
@@ -87,22 +91,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (!hasAcceptedTerms) {
-                    TermsAndConditionsScreen(
-                        onAccept = {
-                            scope.launch {
-                                termsDataStore.acceptTerms()
-                            }
-                        }
-                    )
+                if (showIntro) {
+                    IntroScreen(onFinished = { showIntro = false })
                 } else {
-                    val chatViewModel: ChatViewModel = hiltViewModel()
-                    val llmModelViewModel: LLMModelViewModel = hiltViewModel()
+                    if (!hasAcceptedTerms) {
+                        TermsAndConditionsScreen(
+                            onAccept = {
+                                scope.launch {
+                                    termsDataStore.acceptTerms()
+                                }
+                            }
+                        )
+                    } else {
+                        val chatViewModel: ChatViewModel = hiltViewModel()
+                        val llmModelViewModel: LLMModelViewModel = hiltViewModel()
 
-                    AppNavigation(
-                        chatViewModel = chatViewModel,
-                        llmModelViewModel = llmModelViewModel
-                    )
+                        AppNavigation(
+                            chatViewModel = chatViewModel,
+                            llmModelViewModel = llmModelViewModel
+                        )
+                    }
                 }
             }
         }
