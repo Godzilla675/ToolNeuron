@@ -41,6 +41,14 @@ class ModelRepositoryDataStore(private val context: Context) {
                 category = ModelCategory.GENERAL
             ),
             HFModelRepository(
+                id = "qwen3_5_4b_instruct",
+                name = "Qwen3.5 Instruct (4B)",
+                repoPath = "Qwen/Qwen3.5-4B-Instruct-GGUF",
+                modelType = ModelType.GGUF,
+                isEnabled = true,
+                category = ModelCategory.GENERAL
+            ),
+            HFModelRepository(
                 id = "liquidai-lfm2-350m",
                 name = "LFM2 350M",
                 repoPath = "LiquidAI/LFM2-350M-GGUF",

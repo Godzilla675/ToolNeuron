@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.util.Locale
 
 enum class DeviceTier {
     LOW_END,    // < 4GB RAM
@@ -72,6 +73,7 @@ data class GgufInferenceParams(
     val maxTokens: Int = 4096,
     val systemPrompt: String = "",
     val chatTemplate: String = "",
+    val chatTemplateKwargs: String = "",
     val toolsJson: String = ""  // JSON array of tool definitions
 )
 
@@ -85,6 +87,9 @@ data class GgufEngineSchema(
     fun toInferenceJson(): String = json.encodeToString(inferenceParams)
 
     companion object {
+        private const val QWEN_THINKING_DISABLED_KWARGS = """{"enable_thinking": false}"""
+        // Match common Qwen 3.5 naming styles used across local files and HF repos.
+        private val qwen35ModelMarkers = listOf("qwen3.5", "qwen-3.5", "qwen3_5")
         private val json = Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
@@ -108,6 +113,21 @@ data class GgufEngineSchema(
             } ?: GgufInferenceParams()
 
             return GgufEngineSchema(loading, inference)
+        }
+
+        fun defaultsForModel(modelName: String): GgufEngineSchema {
+            val base = GgufEngineSchema()
+            if (!isQwen35Model(modelName)) return base
+            return base.copy(
+                inferenceParams = base.inferenceParams.copy(
+                    chatTemplateKwargs = QWEN_THINKING_DISABLED_KWARGS
+                )
+            )
+        }
+
+        private fun isQwen35Model(modelName: String): Boolean {
+            val normalized = modelName.lowercase(Locale.ROOT)
+            return qwen35ModelMarkers.any { normalized.contains(it) }
         }
     }
 }

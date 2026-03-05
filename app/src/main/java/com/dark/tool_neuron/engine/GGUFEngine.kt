@@ -2,6 +2,7 @@ package com.dark.tool_neuron.engine
 
 import android.app.ActivityManager
 import android.content.Context
+import android.util.Log
 import com.dark.tool_neuron.models.table_schema.Model
 import com.dark.tool_neuron.models.table_schema.ModelConfig
 import com.dark.tool_neuron.models.engine_schema.DeviceTier
@@ -66,6 +67,7 @@ class GGUFEngine {
             if (inference.chatTemplate.isNotEmpty()) {
                 nativeLib.nativeSetChatTemplate(inference.chatTemplate)
             }
+            setChatTemplateKwargs(inference.chatTemplateKwargs)
         }
 
         success
@@ -117,6 +119,7 @@ class GGUFEngine {
             if (inference.chatTemplate.isNotEmpty()) {
                 nativeLib.nativeSetChatTemplate(inference.chatTemplate)
             }
+            setChatTemplateKwargs(inference.chatTemplateKwargs)
         }
 
         success
@@ -229,6 +232,16 @@ class GGUFEngine {
 
     fun stopGeneration() {
         nativeLib.nativeStopGeneration()
+    }
+
+    private fun setChatTemplateKwargs(kwargsJson: String) {
+        if (kwargsJson.isBlank()) return
+        try {
+            setChatTemplateKwargsMethod?.invoke(nativeLib, kwargsJson)
+        } catch (e: ReflectiveOperationException) {
+            Log.d(TAG, "Chat template kwargs not supported in this native lib version (expected for older versions): ${e.message}")
+            // Backward-compatible with native libs that don't expose chat template kwargs
+        }
     }
 
     suspend fun unload() = withContext(Dispatchers.IO) {
@@ -414,6 +427,15 @@ class GGUFEngine {
     fun hasToolsEnabled(): Boolean = !currentToolsJson.isNullOrEmpty()
 
     companion object {
+        private const val TAG = "GGUFEngine"
+        private val setChatTemplateKwargsMethod by lazy {
+            GGUFNativeLib::class.java.methods.firstOrNull {
+                it.name == "nativeSetChatTemplateKwargs" &&
+                        it.parameterTypes.size == 1 &&
+                        it.parameterTypes[0] == String::class.java
+            }
+        }
+
         /**
          * Detect device tier based on available RAM
          */
