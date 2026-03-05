@@ -463,6 +463,14 @@ private fun GgufConfigEditor(viewModel: ModelConfigEditorViewModel) {
                 multiline = true,
                 minLines = 3
             )
+
+            TextField(
+                label = "Chat Template Kwargs (Optional JSON)",
+                value = ggufConfig.inferenceParams.chatTemplateKwargs,
+                onValueChange = { viewModel.updateGgufChatTemplateKwargs(it) },
+                multiline = true,
+                minLines = 2
+            )
         }
     }
 }

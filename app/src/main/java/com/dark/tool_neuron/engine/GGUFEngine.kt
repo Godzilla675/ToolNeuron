@@ -66,6 +66,7 @@ class GGUFEngine {
             if (inference.chatTemplate.isNotEmpty()) {
                 nativeLib.nativeSetChatTemplate(inference.chatTemplate)
             }
+            setChatTemplateKwargs(inference.chatTemplateKwargs)
         }
 
         success
@@ -117,6 +118,7 @@ class GGUFEngine {
             if (inference.chatTemplate.isNotEmpty()) {
                 nativeLib.nativeSetChatTemplate(inference.chatTemplate)
             }
+            setChatTemplateKwargs(inference.chatTemplateKwargs)
         }
 
         success
@@ -229,6 +231,20 @@ class GGUFEngine {
 
     fun stopGeneration() {
         nativeLib.nativeStopGeneration()
+    }
+
+    private fun setChatTemplateKwargs(kwargsJson: String) {
+        if (kwargsJson.isBlank()) return
+        try {
+            val method = nativeLib.javaClass.methods.firstOrNull {
+                it.name == "nativeSetChatTemplateKwargs" &&
+                        it.parameterTypes.size == 1 &&
+                        it.parameterTypes[0] == String::class.java
+            } ?: return
+            method.invoke(nativeLib, kwargsJson)
+        } catch (_: Exception) {
+            // Backward-compatible with native libs that don't expose chat template kwargs
+        }
     }
 
     suspend fun unload() = withContext(Dispatchers.IO) {

@@ -574,7 +574,7 @@ class ModelDownloadService : Service() {
             }
 
             ProviderType.GGUF -> {
-                val ggufSchema = GgufEngineSchema()
+                val ggufSchema = GgufEngineSchema.defaultsForModel(modelName)
                 ModelConfig(
                     modelId = checksum,
                     modelLoadingParams = ggufSchema.toLoadingJson(),

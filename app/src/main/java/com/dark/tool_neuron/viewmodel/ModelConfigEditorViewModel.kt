@@ -247,6 +247,12 @@ class ModelConfigEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateGgufChatTemplateKwargs(value: String) {
+        _ggufConfig.update {
+            it.copy(inferenceParams = it.inferenceParams.copy(chatTemplateKwargs = value))
+        }
+    }
+
     // ==================== Diffusion Config Updates ====================
 
     fun updateDiffusionEmbeddingSize(value: Int) {

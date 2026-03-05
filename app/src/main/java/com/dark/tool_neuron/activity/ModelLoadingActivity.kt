@@ -235,7 +235,7 @@ fun ModelLoadingScreen(
                     // Create and insert config based on provider type
                     val config = when (model.providerType) {
                         ProviderType.GGUF -> {
-                            val defaultSchema = GgufEngineSchema()
+                            val defaultSchema = GgufEngineSchema.defaultsForModel(model.modelName)
                             ModelConfig(
                                 modelId = model.id,
                                 modelLoadingParams = defaultSchema.toLoadingJson(),

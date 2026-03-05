@@ -72,6 +72,7 @@ data class GgufInferenceParams(
     val maxTokens: Int = 4096,
     val systemPrompt: String = "",
     val chatTemplate: String = "",
+    val chatTemplateKwargs: String = "",
     val toolsJson: String = ""  // JSON array of tool definitions
 )
 
@@ -108,6 +109,23 @@ data class GgufEngineSchema(
             } ?: GgufInferenceParams()
 
             return GgufEngineSchema(loading, inference)
+        }
+
+        fun defaultsForModel(modelName: String): GgufEngineSchema {
+            val base = GgufEngineSchema()
+            if (!isQwen35Model(modelName)) return base
+            return base.copy(
+                inferenceParams = base.inferenceParams.copy(
+                    chatTemplateKwargs = """{"enable_thinking": false}"""
+                )
+            )
+        }
+
+        private fun isQwen35Model(modelName: String): Boolean {
+            val normalized = modelName.lowercase()
+            return normalized.contains("qwen3.5") ||
+                    normalized.contains("qwen-3.5") ||
+                    normalized.contains("qwen3_5")
         }
     }
 }
