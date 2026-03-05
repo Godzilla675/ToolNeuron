@@ -463,6 +463,13 @@ private fun GgufConfigEditor(viewModel: ModelConfigEditorViewModel) {
                 multiline = true,
                 minLines = 3
             )
+
+            SwitchField(
+                label = "Enable Thinking",
+                description = "Enable reasoning tokens for supported models (e.g., Qwen3.5)",
+                checked = ggufConfig.inferenceParams.enableThinking,
+                onCheckedChange = { viewModel.updateGgufEnableThinking(it) }
+            )
         }
     }
 }

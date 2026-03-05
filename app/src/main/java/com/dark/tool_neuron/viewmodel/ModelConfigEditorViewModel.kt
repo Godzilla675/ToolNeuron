@@ -247,6 +247,12 @@ class ModelConfigEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateGgufEnableThinking(value: Boolean) {
+        _ggufConfig.update {
+            it.copy(inferenceParams = it.inferenceParams.copy(enableThinking = value))
+        }
+    }
+
     // ==================== Diffusion Config Updates ====================
 
     fun updateDiffusionEmbeddingSize(value: Int) {
