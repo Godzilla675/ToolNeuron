@@ -64,7 +64,12 @@ class GGUFEngine {
                 nativeLib.nativeSetSystemPrompt(inference.systemPrompt)
             }
             if (inference.chatTemplate.isNotEmpty()) {
-                nativeLib.nativeSetChatTemplate(inference.chatTemplate)
+                val template = if (!inference.enableThinking) {
+                    "{% set enable_thinking = false %}\n" + inference.chatTemplate
+                } else {
+                    inference.chatTemplate
+                }
+                nativeLib.nativeSetChatTemplate(template)
             }
         }
 
@@ -115,7 +120,12 @@ class GGUFEngine {
                 nativeLib.nativeSetSystemPrompt(inference.systemPrompt)
             }
             if (inference.chatTemplate.isNotEmpty()) {
-                nativeLib.nativeSetChatTemplate(inference.chatTemplate)
+                val template = if (!inference.enableThinking) {
+                    "{% set enable_thinking = false %}\n" + inference.chatTemplate
+                } else {
+                    inference.chatTemplate
+                }
+                nativeLib.nativeSetChatTemplate(template)
             }
         }
 

@@ -72,7 +72,8 @@ data class GgufInferenceParams(
     val maxTokens: Int = 4096,
     val systemPrompt: String = "",
     val chatTemplate: String = "",
-    val toolsJson: String = ""  // JSON array of tool definitions
+    val toolsJson: String = "",  // JSON array of tool definitions
+    val enableThinking: Boolean = true // Enable/Disable Qwen3.5 thinking tokens
 )
 
 @Serializable
