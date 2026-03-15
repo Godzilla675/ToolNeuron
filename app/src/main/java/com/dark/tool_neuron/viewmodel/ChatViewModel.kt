@@ -594,6 +594,7 @@ class ChatViewModel @Inject constructor(
         val enabledNames = PluginManager.getEnabledToolNames().map { it.lowercase() } +
             mcpToolRegistry.keys.map { it.lowercase() }
         val truncatedPlan = plan.take(200)
+        val taskTokenGuidance = buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty())
 
         for (round in 1..maxRounds) {
             // Generate next tool call
@@ -603,8 +604,8 @@ class ChatViewModel @Inject constructor(
             // just provide context about what's done + what the user wants
             val systemPrompt = if (steps.isEmpty()) {
                 buildString {
-                    buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty()).takeIf { it.isNotEmpty() }?.let {
-                        appendLine(it)
+                    if (taskTokenGuidance.isNotEmpty()) {
+                        appendLine(taskTokenGuidance)
                         appendLine()
                     }
                     appendLine("Tools: $toolSignatures")
@@ -613,8 +614,8 @@ class ChatViewModel @Inject constructor(
                 }
             } else {
                 buildString {
-                    buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty()).takeIf { it.isNotEmpty() }?.let {
-                        appendLine(it)
+                    if (taskTokenGuidance.isNotEmpty()) {
+                        appendLine(taskTokenGuidance)
                         appendLine()
                     }
                     appendLine("Done: ${steps.joinToString("; ") { "${it.toolName}=${it.result.take(100)}" }}")
@@ -1197,11 +1198,12 @@ class ChatViewModel @Inject constructor(
         } else ""
 
         // Assemble: thinkingDirective + persona + memory + model system prompt
+        val taskTokenGuidance = buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty())
         return buildString {
             append(thinkingDirective)
-            buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty()).takeIf { it.isNotEmpty() }?.let {
+            if (taskTokenGuidance.isNotEmpty()) {
                 append("\n\n")
-                append(it)
+                append(taskTokenGuidance)
             }
             if (personaPrompt.isNotEmpty()) {
                 append("\n")
@@ -2074,9 +2076,10 @@ class ChatViewModel @Inject constructor(
         ): String = buildString {
             appendLine("Available tools:")
             appendLine(toolDescriptions)
-            buildTaskTokenGuidance(hasMcpTools).takeIf { it.isNotEmpty() }?.let {
+            val taskTokenGuidance = buildTaskTokenGuidance(hasMcpTools)
+            if (taskTokenGuidance.isNotEmpty()) {
                 appendLine()
-                appendLine(it)
+                appendLine(taskTokenGuidance)
             }
             appendLine()
             appendLine("Write a 1-2 sentence plan: which tools to call and what arguments to pass. Be specific and concise.")
