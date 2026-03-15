@@ -2068,8 +2068,8 @@ class ChatViewModel @Inject constructor(
             return """
                 $TASK_TOKEN_GUIDANCE_HEADING Some MCP services use task-scoped tokens.
                 Treat them as valid credentials for the current task only.
-                They only grant the minimum permissions needed for that task,
-                remain active until the user marks the task complete.
+                They only grant the minimum permissions needed for that task
+                and remain active until the user marks the task complete.
                 You cannot revoke them yourself.
             """.trimIndent()
         }
