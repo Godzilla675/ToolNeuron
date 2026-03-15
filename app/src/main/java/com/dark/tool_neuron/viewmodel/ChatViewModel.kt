@@ -563,12 +563,10 @@ class ChatViewModel @Inject constructor(
     private suspend fun generatePlan(prompt: String): String {
         PluginManager.clearGrammar()
         val toolDescriptions = PluginManager.getToolDescriptionsText()
-        val systemPrompt = buildString {
-            appendLine("Available tools:")
-            appendLine(toolDescriptions)
-            appendLine()
-            appendLine("Write a 1-2 sentence plan: which tools to call and what arguments to pass. Be specific and concise.")
-        }
+        val systemPrompt = buildAgentPlanningPrompt(
+            toolDescriptions = toolDescriptions,
+            hasMcpTools = mcpToolRegistry.isNotEmpty()
+        )
         val messages = listOf(
             JSONObject().put("role", "system").put("content", systemPrompt),
             JSONObject().put("role", "user").put("content", prompt)
@@ -605,12 +603,20 @@ class ChatViewModel @Inject constructor(
             // just provide context about what's done + what the user wants
             val systemPrompt = if (steps.isEmpty()) {
                 buildString {
+                    buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty()).takeIf { it.isNotEmpty() }?.let {
+                        appendLine(it)
+                        appendLine()
+                    }
                     appendLine("Tools: $toolSignatures")
                     appendLine("Plan: $truncatedPlan")
                     appendLine("Call the first tool with ALL required arguments.")
                 }
             } else {
                 buildString {
+                    buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty()).takeIf { it.isNotEmpty() }?.let {
+                        appendLine(it)
+                        appendLine()
+                    }
                     appendLine("Done: ${steps.joinToString("; ") { "${it.toolName}=${it.result.take(100)}" }}")
                     appendLine("Call the NEXT tool needed, or stop if the plan is complete.")
                 }
@@ -1193,6 +1199,10 @@ class ChatViewModel @Inject constructor(
         // Assemble: thinkingDirective + persona + memory + model system prompt
         return buildString {
             append(thinkingDirective)
+            buildTaskTokenGuidance(hasMcpTools = mcpToolRegistry.isNotEmpty()).takeIf { it.isNotEmpty() }?.let {
+                append("\n\n")
+                append(it)
+            }
             if (personaPrompt.isNotEmpty()) {
                 append("\n")
                 append(personaPrompt)
@@ -2019,13 +2029,14 @@ class ChatViewModel @Inject constructor(
         val startTime = System.currentTimeMillis()
         return try {
             val result = mcpClientService.callTool(ref.server, ref.toolName, argsJson)
+            val resultJson = result.getOrElse { throw it }
             MultiTurnToolResult(
                 toolName = toolName,
-                resultJson = result,
+                resultJson = resultJson,
                 isError = false,
                 pluginName = "MCP:${ref.server.name}",
                 executionTimeMs = System.currentTimeMillis() - startTime,
-                rawData = result
+                rawData = resultJson
             )
         } catch (e: Exception) {
             MultiTurnToolResult(
@@ -2048,5 +2059,26 @@ class ChatViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "ChatViewModel"
+
+        internal fun buildTaskTokenGuidance(hasMcpTools: Boolean): String {
+            if (!hasMcpTools) return ""
+            return """
+                Task tokens: Some MCP services use task-scoped tokens. Treat them as valid credentials for the approved task only. They only grant the minimum permissions needed for that task, remain active until the user marks the task complete, and are not something you can revoke yourself.
+            """.trimIndent()
+        }
+
+        internal fun buildAgentPlanningPrompt(
+            toolDescriptions: String,
+            hasMcpTools: Boolean
+        ): String = buildString {
+            appendLine("Available tools:")
+            appendLine(toolDescriptions)
+            buildTaskTokenGuidance(hasMcpTools).takeIf { it.isNotEmpty() }?.let {
+                appendLine()
+                appendLine(it)
+            }
+            appendLine()
+            appendLine("Write a 1-2 sentence plan: which tools to call and what arguments to pass. Be specific and concise.")
+        }
     }
 }
