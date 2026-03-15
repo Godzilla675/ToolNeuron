@@ -2059,11 +2059,12 @@ class ChatViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "ChatViewModel"
+        internal const val TASK_TOKEN_GUIDANCE_HEADING = "Task tokens:"
 
         internal fun buildTaskTokenGuidance(hasMcpTools: Boolean): String {
             if (!hasMcpTools) return ""
             return """
-                Task tokens: Some MCP services use task-scoped tokens. Treat them as valid credentials for the approved task only. They only grant the minimum permissions needed for that task, remain active until the user marks the task complete, and are not something you can revoke yourself.
+                $TASK_TOKEN_GUIDANCE_HEADING Some MCP services use task-scoped tokens. Treat them as valid credentials for the current task only. They only grant the minimum permissions needed for that task, remain active until the user marks the task complete, and are not something you can revoke yourself.
             """.trimIndent()
         }
 

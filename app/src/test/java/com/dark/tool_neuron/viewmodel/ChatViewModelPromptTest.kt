@@ -10,7 +10,7 @@ class ChatViewModelPromptTest {
     fun taskTokenGuidanceIsOnlyIncludedWhenMcpToolsAreAvailable() {
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("task-scoped tokens"))
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("user marks the task complete"))
-        assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("minimum permissions"))
+        assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("minimum permissions needed"))
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("revoke yourself"))
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = false).isEmpty())
     }
@@ -24,7 +24,9 @@ class ChatViewModelPromptTest {
 
         assertTrue(prompt.contains("Available tools:"))
         assertTrue(prompt.contains("zapier_mcp_google_docs_create_document_from_text"))
-        assertTrue(prompt.contains("Task tokens:"))
+        assertTrue(prompt.contains(ChatViewModel.TASK_TOKEN_GUIDANCE_HEADING))
+        assertTrue(prompt.contains("task-scoped tokens"))
+        assertTrue(prompt.contains("user marks the task complete"))
         assertTrue(prompt.contains("Write a 1-2 sentence plan"))
     }
 
@@ -36,6 +38,6 @@ class ChatViewModelPromptTest {
         )
 
         assertTrue(prompt.contains("web_search"))
-        assertFalse(prompt.contains("Task tokens:"))
+        assertFalse(prompt.contains(ChatViewModel.TASK_TOKEN_GUIDANCE_HEADING))
     }
 }
