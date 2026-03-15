@@ -141,7 +141,7 @@ fun McpStoreScreen(
                 }
 
                 // Loading overlay
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = isLoading,
                     enter = fadeIn(),
                     exit = fadeOut()
