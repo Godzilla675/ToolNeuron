@@ -2066,7 +2066,11 @@ class ChatViewModel @Inject constructor(
         internal fun buildTaskTokenGuidance(hasMcpTools: Boolean): String {
             if (!hasMcpTools) return ""
             return """
-                $TASK_TOKEN_GUIDANCE_HEADING Some MCP services use task-scoped tokens. Treat them as valid credentials for the current task only. They only grant the minimum permissions needed for that task, remain active until the user marks the task complete, and are not something you can revoke yourself.
+                $TASK_TOKEN_GUIDANCE_HEADING Some MCP services use task-scoped tokens.
+                Treat them as valid credentials for the current task only.
+                They only grant the minimum permissions needed for that task,
+                remain active until the user marks the task complete.
+                You cannot revoke them yourself.
             """.trimIndent()
         }
 

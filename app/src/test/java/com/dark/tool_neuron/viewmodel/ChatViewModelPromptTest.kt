@@ -11,7 +11,7 @@ class ChatViewModelPromptTest {
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("task-scoped tokens"))
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("user marks the task complete"))
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("minimum permissions needed"))
-        assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("revoke yourself"))
+        assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = true).contains("You cannot revoke them yourself"))
         assertTrue(ChatViewModel.buildTaskTokenGuidance(hasMcpTools = false).isEmpty())
     }
 
