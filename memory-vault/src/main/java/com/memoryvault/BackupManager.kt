@@ -75,6 +75,16 @@ class BackupManager(private val vaultFile: File) {
             backupSize = restoredSize
         )
     }
+
+    suspend fun cleanupOldBackups(backupDir: File, maxBackups: Int) = withContext(Dispatchers.IO) {
+        val backups = backupDir.listFiles { file ->
+            file.name.startsWith("vault_") && file.name.endsWith(".mvlt.gz")
+        }?.sortedByDescending { it.lastModified() } ?: return@withContext
+
+        if (backups.size > maxBackups) {
+            backups.drop(maxBackups).forEach { it.delete() }
+        }
+    }
 }
 
 data class BackupResult(
