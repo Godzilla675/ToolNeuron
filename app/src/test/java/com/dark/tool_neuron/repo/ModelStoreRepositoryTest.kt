@@ -21,6 +21,7 @@ class ModelStoreRepositoryTest {
     @Test
     fun supportedGgufFileRejectsProjectionArtifacts() {
         assertFalse(ModelStoreRepository.isSupportedGgufFile("models/whisper-mmproj.Q4_K_M.GGUF"))
+        assertFalse(ModelStoreRepository.isSupportedGgufFile("models/whisper-mmjproj.Q4_K_M.GGUF"))
         assertFalse(ModelStoreRepository.isSupportedGgufFile("models/whisper-vision-adapter.gguf"))
         assertFalse(ModelStoreRepository.isSupportedGgufFile("models/whisper-projector.gguf"))
     }

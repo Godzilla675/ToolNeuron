@@ -636,7 +636,7 @@ class ChatViewModel @Inject constructor(
             return "Please load a text generation model first"
         }
         if (!LlmModelWorker.isVlmLoaded.value) {
-            return "Please load a compatible projector (mmproj) first"
+            return "Please load a compatible projector (mmproj or mmjproj) first"
         }
         if (_isGenerating.value) {
             return "Please wait for the current generation to finish"
